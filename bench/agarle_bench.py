@@ -44,9 +44,11 @@ def main():
     env.reset()
     states = []
     for _ in range(args.num_steps):
-        state, reward, done, info = env.step(null_action)
+        step_out = env.step(null_action)
+        state = step_out[0]
         states.append(state)
     del states
+    env.close()
 
 
 def parse_args():

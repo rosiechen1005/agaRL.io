@@ -1,8 +1,8 @@
-
 import gym
 import numpy as np
 import itertools
 from gym import spaces
+
 
 class DiscretizedAgarioEnv(gym.Env):
     def __init__(self):
@@ -13,15 +13,19 @@ class DiscretizedAgarioEnv(gym.Env):
         self.motion_vals = list(range(-5, 6))  # 11 values
         self.action_types = [0, 1, 2]  # do nothing, split, feed
         self.actions = list(itertools.product(self.motion_vals, self.motion_vals, self.action_types))
-        self.action_space = spaces.Discrete(len(self.actions))  # how large the action space is: 11*11*3 = 363
+        self.action_space = spaces.Discrete(len(self.actions))  # 11*11*3 = 363
 
-        # CNN-compatible observation
-        obs = self.reset()
-        shape = obs.shape
-        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=shape, dtype=np.float32)
+        # CNN-compatible observation (shape set after first reset)
+        self._obs_shape = None
+        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(128, 128, 10), dtype=np.float32)
 
     def reset(self):
-        obs = self.base_env.reset()
+        out = self.base_env.reset()
+        obs = out[0] if isinstance(out, (tuple, list)) and len(out) == 2 else out
+        obs = np.asarray(obs)
+        if self._obs_shape is None:
+            self._obs_shape = obs.shape
+            self.observation_space = spaces.Box(low=0.0, high=1.0, shape=self._obs_shape, dtype=np.float32)
         return self._scale_obs(obs)
 
     def step(self, action_idx):
@@ -30,11 +34,21 @@ class DiscretizedAgarioEnv(gym.Env):
         norm = np.linalg.norm(direction)
         if norm > 1:
             direction = direction / norm
-        obs, reward, done, info = self.base_env.step((direction, act))
+        # Support both 4- and 5-tuple step returns (gym 0.26+)
+        step_out = self.base_env.step((direction, act))
+        if len(step_out) == 5:
+            obs, reward, terminated, truncated, info = step_out
+            done = terminated or truncated
+        else:
+            obs, reward, done, info = step_out
+        obs = np.asarray(obs)
         return self._scale_obs(obs), reward, done, info
 
     def _scale_obs(self, obs):
-        return obs.astype(np.float32) / 255.0 # not sure what value to scale by, assume RBG numbers
+        obs = np.asarray(obs, dtype=np.float32)
+        if obs.max() > 1.0:
+            obs = obs / 255.0
+        return np.clip(obs, 0.0, 1.0)
 
     def render(self, mode="human"):
         self.base_env.render(mode=mode)

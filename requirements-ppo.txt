@@ -1,0 +1,2 @@
+# For PPO training (in addition to gym, numpy from main setup)
+torch>=1.9.0

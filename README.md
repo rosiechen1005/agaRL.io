@@ -7,33 +7,48 @@ The Agar.io Learning Environment (AgarLE) is a performant implementation of the 
 </p>
 
 # Installation
-Clone this repository (with submodules)
 
-    git clone --recursive https://github.com/jondeaton/AgarLE.git
+**Requirements:** Python 3.x, CMake, C++ compiler (Clang recommended; see Caveats).
 
-run the included installation script
+Clone this repository (with submodules). Use your own fork’s URL if you forked the project:
+
+    git clone --recursive https://github.com/YOUR_USERNAME/AgarLE.git
+
+Install the package (builds the C++ extension and installs the `gym_agario` module):
 
     python setup.py install
 
+**Repository layout (what to keep vs ignore):**
+
+| Keep (source) | Ignore / don’t commit (build artifacts) |
+|---------------|----------------------------------------|
+| `agario/` (source: core, client, engine, …) | `build/`, `dist/`, `GymAgario.egg-info/` |
+| `environment/`, `environment/pybind11/` | `CMakeFiles/`, `agario/build/`, `agario/CMakeFiles/` |
+| `gym_agario/`, `ppo/`, `tests/`, `bench/`, `utils/` | `__pycache__/`, `*.egg-info`, `CMakeCache.txt` |
+
+`cxxopts/` is used by the game client for CLI parsing (keep if you build the client). `environment/pybind11_old/` is unused; you can remove it. These are already covered by `.gitignore` where applicable.
+
 # Usage
 
-Installation will have installed the python module `gym_agario`, which when imported
-registers the AgarLE gym environments. You need only import `gym_agario` and then
-make an environment in the standard way 
+Import `gym_agario` to register the environments, then create and use an environment:
 
 ```python
 import gym
+import numpy as np
 import gym_agario
-    
-env = gym.make("agario-grid-v0")
-    
-game_state = env.reset()
-print(game_state.shape) # (128, 128, 10) , (grid_size, grid_size, num_channels)
 
-action = np.array([0, 0]), 0  # don't move, don't split
+env = gym.make("agario-grid-v0")
+out = env.reset()
+obs = out[0] if isinstance(out, (tuple, list)) and len(out) == 2 else out  # support gym 0.26+
+print(obs.shape)  # (128, 128, 10) — grid_size, grid_size, num_channels
+
+action = (np.array([0.0, 0.0], dtype=np.float32), 0)  # don't move, don't split/feed
 while True:
-  game_state, reward, done, info = env.step(action)
-  if done: break
+    step_out = env.step(action)
+    obs, reward, done = step_out[0], step_out[1], step_out[2]
+    if done:
+        break
+env.close()
 ```
 
 The Agar.io game and observation space are highly configurable. You can change
@@ -58,6 +73,11 @@ config = {
 
 env = gym.make("agario-grid-v0", **config)
 ```
+
+# Scripts and optional wrappers
+
+- **Random agent baselines:** `test_random_agent.py` (continuous actions, optional early stopping), `test_action.py` (random actions, episode stats).
+- **Discrete action space:** Use `DiscretizedAgarioEnv` from `discretized_agario_env_fixed.py` to wrap the env with a 363-action discrete space (11×11 directions × 3 action types), e.g. for DQN-style algorithms.
 
 # Multi-Agent Environments
 
@@ -94,6 +114,29 @@ be reset.
 
 Note that if you pass `num_agents` greater than 1, `multi_agent`
 will be set True automatically.
+
+# PPO training
+
+The repo includes a **Proximal Policy Optimization (PPO)** agent to train the player to survive as long as possible without being told the rules of the game. The agent gets larger by eating pellets or smaller cells, and gets smaller by hitting a virus or being eaten. The environment is represented with **grid arrays** (e.g. the player cell, pellets, viruses, other cells). At each timestep the **policy network (actor)** chooses a direction to move in; we observe the **reward (change in size)** and the new state; the **value network (critic)** estimates how advantageous the current state is. PPO restricts how much the policy can change at once for stable learning.
+
+- **Policy network (actor):** chooses actions based on observed surroundings and learned strategies.
+- **Value network (critic):** evaluates how good the current state is from gameplay data.
+
+Install PyTorch (needed only for PPO):
+
+    pip install -r requirements-ppo.txt
+
+Train for 100k steps (default); optionally save the model:
+
+    python train_ppo.py --timesteps 100000 --save ppo_agario.pt
+
+Easier setting (no bots, smaller arena):
+
+    python train_ppo.py --difficulty trivial --timesteps 50000
+
+Run tests (from repo root; requires installed package):
+
+    python -m tests
 
 # Caveats
 

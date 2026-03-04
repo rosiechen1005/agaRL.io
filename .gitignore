@@ -787,3 +787,10 @@ venv.bak/
 .mypy_cache/
 
 cmake-build-debug/
+
+# AgarLE / CMake
+CMakeCache.txt
+CMakeFiles/
+.DS_Store
+# Saved PPO model checkpoints (optional)
+*.pt

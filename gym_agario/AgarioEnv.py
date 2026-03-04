@@ -275,7 +275,7 @@ class AgarioEnv(gym.Env):
         self.arena_size      = kwargs.get("arena_size", arena_size)
         self.num_pellets     = kwargs.get("num_pellets", num_pellets)
         self.num_viruses     = kwargs.get("num_viruses", num_viruses)
-        self.num_bots        = kwargs.get("num_bot", num_bots)
+        self.num_bots        = kwargs.get("num_bots", kwargs.get("num_bot", num_bots))
         self.pellet_regen    = kwargs.get("pellet_regen", pellet_regen)
 
         self.multi_agent = self.multi_agent or self.num_agents > 1
